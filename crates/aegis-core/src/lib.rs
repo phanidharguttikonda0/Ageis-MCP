@@ -19,7 +19,11 @@ pub mod redis;
 pub use config::{AppConfig, ServerConfig, RedisConfig, CacheConfig, LLMConfig, ObservabilityConfig};
 pub use error::{Error, Result};
 pub use cache::{CacheEngine, CacheEntry, CacheStats};
-pub use embedding::{EmbeddingService, EmbeddingRequest};
+pub use embedding::{
+    EmbeddingService, EmbeddingRequest, EmbeddingResponse, EmbeddingStats,
+    OpenAIEmbeddingProvider, InMemoryEmbeddingCache,
+    DEFAULT_EMBEDDING_MODEL, DEFAULT_EMBEDDING_DIMENSION, MAX_EMBEDDING_TEXT_LENGTH,
+};
 pub use llm::{LLMClient, LLMRequest, LLMResponse};
 pub use mcp::{MCPServer, MCPRequest, MCPResponse};
 pub use tracing::{
@@ -40,6 +44,3 @@ pub const NAME: &str = "Aegis-MCP";
 
 /// Default cache similarity threshold (cosine distance)
 pub const DEFAULT_SIMILARITY_THRESHOLD: f32 = 0.95;
-
-/// Default embedding dimension (OpenAI text-embedding-ada-002)
-pub const DEFAULT_EMBEDDING_DIMENSION: usize = 1536;
