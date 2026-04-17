@@ -12,6 +12,7 @@ pub mod llm;
 pub mod mcp;
 pub mod tracing;
 pub mod metrics;
+pub mod server;
 
 // Re-exports for convenience
 pub use config::{AppConfig, ServerConfig, RedisConfig, CacheConfig, LLMConfig, ObservabilityConfig};
@@ -25,6 +26,7 @@ pub use tracing::{
     create_request_span, create_cache_span, create_llm_span, create_redis_span, create_embedding_span,
 };
 pub use metrics::{Metrics};
+pub use server::{Server};
 
 /// Semantic caching server and governance layer for LLM requests
 ///

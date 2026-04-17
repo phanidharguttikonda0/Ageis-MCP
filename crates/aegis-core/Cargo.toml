@@ -51,6 +51,9 @@ reqwest = { workspace = true }
 async-trait = { workspace = true }
 futures = { workspace = true }
 
+# Time handling
+chrono = { version = "0.4", default-features = false, features = ["serde"] }
+
 # OpenTelemetry
 opentelemetry = { workspace = true }
 opentelemetry-jaeger = { workspace = true }
