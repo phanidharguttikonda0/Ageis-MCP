@@ -54,6 +54,9 @@ futures = { workspace = true }
 # OpenTelemetry
 opentelemetry = { workspace = true }
 opentelemetry-jaeger = { workspace = true }
+# Prometheus metrics
+prometheus = "0.13"
+tokio-metrics = "0.3"
 
 [dev-dependencies]
 tokio-test = "0.4"
