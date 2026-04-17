@@ -52,7 +52,7 @@ async-trait = { workspace = true }
 futures = { workspace = true }
 
 # Time handling
-chrono = { version = "0.4", default-features = false, features = ["serde"] }
+chrono = { version = "0.4", default-features = false, features = ["serde", "clock"] }
 
 # OpenTelemetry
 opentelemetry = { workspace = true }

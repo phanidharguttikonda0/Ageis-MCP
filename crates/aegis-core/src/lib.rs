@@ -13,11 +13,12 @@ pub mod mcp;
 pub mod tracing;
 pub mod metrics;
 pub mod server;
+pub mod redis;
 
 // Re-exports for convenience
 pub use config::{AppConfig, ServerConfig, RedisConfig, CacheConfig, LLMConfig, ObservabilityConfig};
 pub use error::{Error, Result};
-pub use cache::{CacheEngine, CacheEntry};
+pub use cache::{CacheEngine, CacheEntry, CacheStats};
 pub use embedding::{EmbeddingService, EmbeddingRequest};
 pub use llm::{LLMClient, LLMRequest, LLMResponse};
 pub use mcp::{MCPServer, MCPRequest, MCPResponse};
@@ -27,6 +28,7 @@ pub use tracing::{
 };
 pub use metrics::{Metrics};
 pub use server::{Server};
+pub use redis::{RedisPool, VectorSearchRequest, VectorSearchResult, PoolStatus};
 
 /// Semantic caching server and governance layer for LLM requests
 ///

@@ -9,25 +9,28 @@ use thiserror::Error;
 pub enum Error {
     #[error("Configuration error: {0}")]
     Config(String),
-    
+
     #[error("Redis error: {0}")]
     Redis(String),
-    
+
     #[error("Embedding generation error: {0}")]
     Embedding(String),
-    
+
     #[error("LLM API error: {0}")]
     LLM(String),
-    
+
     #[error("MCP protocol error: {0}")]
     MCP(String),
-    
+
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
-    
+
     #[error("Serialization error: {0}")]
     Serialization(String),
-    
+
+    #[error("Lock error: {0}")]
+    Lock(String),
+
     #[error("Unknown error: {0}")]
     Unknown(String),
 }
