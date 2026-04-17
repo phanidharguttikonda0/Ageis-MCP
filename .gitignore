@@ -1,0 +1,9 @@
+/target
+# AI context manifest
+.codebase.json
+.codebase.cache.json
+.vibekit/daemon.lock
+.vibekit/daemon.log
+.vibekit/build.lock
+.vibekit/milestone.env
+.mcp.json
