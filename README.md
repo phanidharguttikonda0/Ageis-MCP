@@ -51,20 +51,51 @@ cargo run
 ### Development
 
 ```bash
-# Run tests
-cargo test
+# Run tests (workspace aware)
+cargo test --workspace
 
 # Run with logging
-RUST_LOG=debug cargo run
+RUST_LOG=debug cargo run --bin aegis-mcp
 
-# Format code
-cargo fmt
+# Format code (workspace)
+cargo fmt --all
 
-# Lint code
-cargo clippy
+# Lint code (workspace)
+cargo clippy --workspace -- -D warnings
 
 # Run all checks
-cargo test && cargo clippy
+cargo test --workspace && cargo clippy --workspace -- -D warnings
+
+# Build specific crate
+cargo build -p aegis-mcp
+cargo build -p aegis-core
+
+# Run with feature flags
+cargo run --bin aegis-mcp --features development
+cargo run --bin aegis-mcp --features production
+```
+
+### Project Structure
+
+```
+Ageis-MCP/
+├── Cargo.toml              # Workspace configuration
+├── crates/
+│   ├── aegis-mcp/          # Binary crate (CLI application)
+│   │   ├── Cargo.toml
+│   │   └── src/main.rs
+│   └── aegis-core/         # Library crate (shared business logic)
+│       ├── Cargo.toml
+│       └── src/
+│           ├── lib.rs
+│           ├── config.rs   # Configuration management
+│           ├── error.rs    # Error types
+│           ├── cache.rs    # Cache engine
+│           ├── embedding.rs # Embedding generation
+│           ├── llm.rs      # LLM client
+│           └── mcp.rs      # MCP protocol
+├── docs/                   # Documentation
+└── tests/                  # Integration tests
 ```
 
 ## Configuration
