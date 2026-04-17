@@ -1,0 +1,56 @@
+# Git
+.git
+.gitignore
+.github
+
+# Target directory
+target
+**/*.rs.bk
+*.pdb
+
+# Cargo
+Cargo.lock
+
+# Documentation
+docs
+*.md
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Environment
+.env
+.env.*
+.env.*
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# CI/CD
+.github
+.gitlab-ci.yml
+.travis.yml
+
+# Development
+scripts
+*.test
+
+# Claude Code
+.claude
+CODE_OF_CONDUCT.md
+CONTRIBUTING.md
+LICENSE
+README.md

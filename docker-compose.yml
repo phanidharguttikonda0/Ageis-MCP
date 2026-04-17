@@ -1,0 +1,125 @@
+version: '3.8'
+
+services:
+  # Aegis-MCP Semantic Caching Server
+  aegis-mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: aegis-mcp
+    ports:
+      - "8080:8080"
+    environment:
+      # Server Configuration
+      - RUST_LOG=info
+      - AEGIS_SERVER_HOST=0.0.0.0
+      - AEGIS_SERVER_PORT=8080
+      - AEGIS_SERVER_MAX_CONNECTIONS=100
+
+      # Redis Configuration
+      - AEGIS_REDIS_URL=redis://redis:6379
+      - AEGIS_REDIS_POOL_SIZE=10
+      - AEGIS_REDIS_CONNECTION_TIMEOUT=5000
+      - AEGIS_REDIS_MAX_LIFETIME=3600
+
+      # Cache Configuration
+      - AEGIS_CACHE_SIMILARITY_THRESHOLD=0.95
+      - AEGIS_CACHE_MAX_SIZE=10000
+      - AEGIS_CACHE_TTL_SECONDS=3600
+
+      # LLM Configuration
+      - AEGIS_LLM_UPSTREAM_URL=https://api.openai.com/v1
+      - AEGIS_LLM_API_KEY=${OPENAI_API_KEY:-your-api-key-here}
+      - AEGIS_LLM_MODEL=gpt-4
+      - AEGIS_LLM_TIMEOUT=30000
+      - AEGIS_LLM_MAX_RETRIES=3
+
+      # Observability Configuration
+      - AEGIS_LOG_LEVEL=info
+      - AEGIS_JAEGER_ENDPOINT=
+
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - aegis-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+  # Redis Stack with vector search capabilities
+  redis:
+    image: redis/redis-stack-server:latest
+    container_name: aegis-redis
+    ports:
+      - "6379:6379"
+      - "8001:8001"  # Redis Insight UI
+    environment:
+      - REDIS_ARGS=--appendonly yes --maxmemory 2gb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis-data:/data
+      - ./redis/redis.conf:/etc/redis/redis.conf:ro
+    networks:
+      - aegis-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+
+  # Prometheus for metrics collection (optional)
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: aegis-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    networks:
+      - aegis-network
+    restart: unless-stopped
+
+  # Grafana for visualization (optional)
+  grafana:
+    image: grafana/grafana:latest
+    container_name: aegis-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    depends_on:
+      - prometheus
+    networks:
+      - aegis-network
+    restart: unless-stopped
+
+networks:
+  aegis-network:
+    driver: bridge
+
+volumes:
+  redis-data:
+    driver: local
+  prometheus-data:
+    driver: local
+  grafana-data:
+    driver: local
