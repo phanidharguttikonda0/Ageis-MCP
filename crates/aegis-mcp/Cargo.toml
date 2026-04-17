@@ -25,6 +25,7 @@ uuid = { workspace = true }
 
 [dev-dependencies]
 aegis-core = { path = "../aegis-core", features = ["testing"] }
+serde_json = { workspace = true }
 
 [features]
 default = ["production"]

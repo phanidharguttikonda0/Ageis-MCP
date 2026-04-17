@@ -47,6 +47,7 @@ dependencies = [
  "anyhow",
  "axum",
  "config",
+ "serde_json",
  "tokio",
  "tracing",
  "tracing-subscriber",
