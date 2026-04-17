@@ -1,0 +1,140 @@
+groups:
+  - name: aegis_mcp_alerts
+    interval: 30s
+    rules:
+      # Application Health Alerts
+      - alert: AegisMCPDown
+        expr: up{job="aegis-mcp"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Aegis-MCP instance is down"
+          description: "Aegis-MCP instance {{ $labels.pod_name }} has been down for more than 1 minute."
+          runbook_url: "https://docs.yourdomain.com/runbooks/aegis-mcp-down"
+
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{job="aegis-mcp",status=~"5.."}[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "High error rate detected"
+          description: "Error rate is {{ $value | humanizePercentage }} for the last 5 minutes."
+          runbook_url: "https://docs.yourdomain.com/runbooks/high-error-rate"
+
+      - alert: HighLatency
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job="aegis-mcp"}[5m])) > 0.5
+        for: 10m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "High request latency detected"
+          description: "P95 latency is {{ $value }}s for the last 10 minutes."
+          runbook_url: "https://docs.yourdomain.com/runbooks/high-latency"
+
+      # Cache Performance Alerts
+      - alert: LowCacheHitRate
+        expr: rate(cache_hits_total{job="aegis-mcp"}[5m]) / rate(cache_requests_total{job="aegis-mcp"}[5m]) < 0.7
+        for: 15m
+        labels:
+          severity: info
+          team: platform
+        annotations:
+          summary: "Low cache hit rate"
+          description: "Cache hit rate is {{ $value | humanizePercentage }} over the last 15 minutes."
+          runbook_url: "https://docs.yourdomain.com/runbooks/low-cache-hit-rate"
+
+      - alert: HighCacheMissRate
+        expr: rate(cache_misses_total{job="aegis-mcp"}[5m]) / rate(cache_requests_total{job="aegis-mcp"}[5m]) > 0.5
+        for: 10m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "High cache miss rate"
+          description: "Cache miss rate is {{ $value | humanizePercentage }} over the last 10 minutes."
+          runbook_url: "https://docs.yourdomain.com/runbooks/high-cache-miss-rate"
+
+      # LLM Provider Alerts
+      - alert: LLMAPIFailureRate
+        expr: rate(llm_requests_total{job="aegis-mcp",status="error"}[5m]) / rate(llm_requests_total{job="aegis-mcp"}[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "High LLM API failure rate"
+          description: "LLM API failure rate is {{ $value | humanizePercentage }} over the last 5 minutes."
+          runbook_url: "https://docs.yourdomain.com/runbooks/llm-api-failures"
+
+      - alert: HighLLMCost
+        expr: rate(llm_tokens_used_total{job="aegis-mcp"}[1h]) * 0.0001 > 10
+        for: 30m
+        labels:
+          severity: warning
+          team: finance
+        annotations:
+          summary: "High LLM API cost detected"
+          description: "Estimated hourly LLM cost is ${{ $value }} over the last 30 minutes."
+          runbook_url: "https://docs.yourdomain.com/runbooks/high-llm-cost"
+
+      # Infrastructure Alerts
+      - alert: HighMemoryUsage
+        expr: container_memory_usage_bytes{job="aegis-mcp"} / container_spec_memory_limit_bytes{job="aegis-mcp"} > 0.9
+        for: 10m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "High memory usage"
+          description: "Memory usage is {{ $value | humanizePercentage }} for pod {{ $labels.pod_name }}."
+          runbook_url: "https://docs.yourdomain.com/runbooks/high-memory-usage"
+
+      - alert: HighCPUUsage
+        expr: rate(container_cpu_usage_seconds_total{job="aegis-mcp"}[5m]) > 0.8
+        for: 10m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "High CPU usage"
+          description: "CPU usage is {{ $value | humanizePercentage }} for pod {{ $labels.pod_name }}."
+          runbook_url: "https://docs.yourdomain.com/runbooks/high-cpu-usage"
+
+      - alert: PodCrashLooping
+        expr: rate(kube_pod_container_status_restarts_total{job="aegis-mcp"}[15m]) > 0
+        for: 5m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Pod is crash looping"
+          description: "Pod {{ $labels.pod_name }} has restarted {{ $value }} times in the last 15 minutes."
+          runbook_url: "https://docs.yourdomain.com/runbooks/pod-crash-looping"
+
+      # Redis Alerts
+      - alert: RedisDown
+        expr: up{job="redis"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Redis instance is down"
+          description: "Redis has been down for more than 1 minute."
+          runbook_url: "https://docs.yourdomain.com/runbooks/redis-down"
+
+      - alert: RedisMemoryHigh
+        expr: redis_memory_used_bytes / redis_memory_max_bytes > 0.9
+        for: 10m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Redis memory usage is high"
+          description: "Redis memory usage is {{ $value | humanizePercentage }}."
+          runbook_url: "https://docs.yourdomain.com/runbooks/redis-memory-high"
