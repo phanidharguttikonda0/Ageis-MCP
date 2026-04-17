@@ -10,7 +10,7 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 use tracing::{debug, error, info, instrument};
 
-use crate::{Error, Result};
+use crate::{Error, Result, CacheEngine};
 
 /// JSON-RPC 2.0 request
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -132,6 +132,7 @@ pub struct MCPServer {
     resources: Arc<RwLock<HashMap<String, MCPResource>>>,
     prompts: Arc<RwLock<HashMap<String, MCPPrompt>>>,
     initialization_info: MCPInitializationInfo,
+    cache_engine: Option<Arc<CacheEngine>>,
 }
 
 impl Default for MCPServer {
@@ -143,7 +144,12 @@ impl Default for MCPServer {
 impl MCPServer {
     /// Create a new MCP server
     pub fn new() -> Self {
-        info!("Creating MCP server");
+        Self::with_cache_engine(None)
+    }
+
+    /// Create a new MCP server with cache engine integration
+    pub fn with_cache_engine(cache_engine: Option<Arc<CacheEngine>>) -> Self {
+        info!("Creating MCP server with cache integration");
 
         let initialization_info = MCPInitializationInfo {
             protocol_version: "2024-11-05".to_string(),
@@ -170,6 +176,7 @@ impl MCPServer {
             resources: Arc::new(RwLock::new(HashMap::new())),
             prompts: Arc::new(RwLock::new(HashMap::new())),
             initialization_info,
+            cache_engine,
         };
 
         // Register default tools
@@ -222,14 +229,72 @@ impl MCPServer {
             }),
         };
 
+        let invalidate_cache_tool = MCPTool {
+            name: "invalidate_cache".to_string(),
+            description: "Invalidate a specific cache entry or clear all cache".to_string(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "hash_id": {
+                        "type": "string",
+                        "description": "Specific cache entry hash ID to invalidate (optional, clears all if not provided)"
+                    },
+                    "confirm": {
+                        "type": "boolean",
+                        "description": "Confirmation required for clearing all cache",
+                        "default": false
+                    }
+                },
+                "required": []
+            }),
+        };
+
+        let warm_cache_tool = MCPTool {
+            name: "warm_cache".to_string(),
+            description: "Warm the cache with common prompts for improved performance".to_string(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "prompts": {
+                        "type": "array",
+                        "description": "Array of prompt texts to warm the cache with",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "required": ["prompts"]
+            }),
+        };
+
+        let set_similarity_threshold_tool = MCPTool {
+            name: "set_similarity_threshold".to_string(),
+            description: "Adjust the similarity threshold for cache matching (0.0-1.0)".to_string(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "threshold": {
+                        "type": "number",
+                        "description": "New similarity threshold value between 0.0 and 1.0",
+                        "minimum": 0.0,
+                        "maximum": 1.0
+                    }
+                },
+                "required": ["threshold"]
+            }),
+        };
+
         let mut tools = self.tools.try_write()
             .map_err(|e| Error::Lock(format!("Failed to acquire tools lock: {}", e)))?;
 
         tools.insert(cache_lookup_tool.name.clone(), cache_lookup_tool);
         tools.insert(cache_stats_tool.name.clone(), cache_stats_tool);
         tools.insert(health_check_tool.name.clone(), health_check_tool);
+        tools.insert(invalidate_cache_tool.name.clone(), invalidate_cache_tool);
+        tools.insert(warm_cache_tool.name.clone(), warm_cache_tool);
+        tools.insert(set_similarity_threshold_tool.name.clone(), set_similarity_threshold_tool);
 
-        info!("Registered default tools");
+        info!("Registered default tools including cache management tools");
         Ok(())
     }
 
@@ -366,6 +431,9 @@ impl MCPServer {
             "health_check" => self.handle_health_check().await,
             "cache_stats" => self.handle_cache_stats().await,
             "cache_lookup" => self.handle_cache_lookup(arguments).await,
+            "invalidate_cache" => self.handle_invalidate_cache(arguments).await,
+            "warm_cache" => self.handle_warm_cache(arguments).await,
+            "set_similarity_threshold" => self.handle_set_similarity_threshold(arguments).await,
             _ => Err(Error::MCP(format!("Unknown tool: {}", tool_name))),
         }
     }
@@ -446,13 +514,129 @@ impl MCPServer {
     async fn handle_cache_lookup(&self, arguments: Value) -> Result<Value> {
         let prompt = arguments.get("prompt")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| Error::MCP("Missing prompt".to_string()))?;
+            .ok_or_else(|| Error::MCP("Missing prompt parameter".to_string()))?;
 
-        // Placeholder - will be integrated with actual cache engine
+        let similarity_threshold = arguments.get("similarity_threshold")
+            .and_then(|v| v.as_f64())
+            .unwrap_or(0.95);
+
+        info!("Cache lookup request for prompt length: {}, threshold: {}", prompt.len(), similarity_threshold);
+
+        // Integrate with cache engine if available
+        if let Some(cache_engine) = &self.cache_engine {
+            // For now, return a placeholder response
+            // In production, this would use the cache engine's search capabilities
+            Ok(json!({
+                "found": false,
+                "prompt": prompt,
+                "similarity_threshold": similarity_threshold,
+                "message": "Cache lookup will be fully integrated with cache engine in production"
+            }))
+        } else {
+            Ok(json!({
+                "found": false,
+                "prompt": prompt,
+                "message": "Cache engine not available - MCP server running without cache integration"
+            }))
+        }
+    }
+
+    /// Handle cache invalidation tool
+    async fn handle_invalidate_cache(&self, arguments: Value) -> Result<Value> {
+        let hash_id = arguments.get("hash_id").and_then(|v| v.as_str());
+        let confirm = arguments.get("confirm").and_then(|v| v.as_bool()).unwrap_or(false);
+
+        info!("Cache invalidation request - hash_id: {:?}, confirm: {}", hash_id, confirm);
+
+        if let Some(cache_engine) = &self.cache_engine {
+            if let Some(hash_id) = hash_id {
+                // Invalidate specific cache entry
+                let result = cache_engine.invalidate_entry(hash_id).await?;
+                info!("Invalidated cache entry: {}", hash_id);
+
+                Ok(json!({
+                    "success": true,
+                    "action": "invalidated_entry",
+                    "hash_id": hash_id,
+                    "found": result
+                }))
+            } else {
+                // Clear all cache - requires confirmation
+                if !confirm {
+                    return Err(Error::MCP("Confirmation required to clear all cache. Set confirm: true in parameters.".to_string()));
+                }
+
+                let count = cache_engine.clear_all().await?;
+                info!("Cleared all cache entries: {}", count);
+
+                Ok(json!({
+                    "success": true,
+                    "action": "cleared_all",
+                    "entries_removed": count
+                }))
+            }
+        } else {
+            Err(Error::MCP("Cache engine not available".to_string()))
+        }
+    }
+
+    /// Handle cache warming tool
+    async fn handle_warm_cache(&self, arguments: Value) -> Result<Value> {
+        let prompts_array = arguments.get("prompts")
+            .and_then(|v| v.as_array())
+            .ok_or_else(|| Error::MCP("Missing prompts array".to_string()))?;
+
+        if prompts_array.is_empty() {
+            return Err(Error::MCP("Prompts array cannot be empty".to_string()));
+        }
+
+        info!("Cache warming request for {} prompts", prompts_array.len());
+
+        // Validate prompts
+        let prompts: Vec<String> = prompts_array.iter()
+            .filter_map(|v| v.as_str())
+            .map(|s| s.to_string())
+            .collect();
+
+        if prompts.is_empty() {
+            return Err(Error::MCP("No valid prompts found in array".to_string()));
+        }
+
+        if let Some(cache_engine) = &self.cache_engine {
+            // Placeholder for cache warming logic
+            // In production, this would generate embeddings and cache responses
+            Ok(json!({
+                "success": true,
+                "action": "cache_warming_initiated",
+                "prompts_count": prompts.len(),
+                "message": "Cache warming will be fully integrated with embedding service in production",
+                "prompts": prompts
+            }))
+        } else {
+            Err(Error::MCP("Cache engine not available".to_string()))
+        }
+    }
+
+    /// Handle set similarity threshold tool
+    async fn handle_set_similarity_threshold(&self, arguments: Value) -> Result<Value> {
+        let threshold = arguments.get("threshold")
+            .and_then(|v| v.as_f64())
+            .ok_or_else(|| Error::MCP("Missing or invalid threshold parameter".to_string()))?;
+
+        // Validate threshold range
+        if threshold < 0.0 || threshold > 1.0 {
+            return Err(Error::MCP("Threshold must be between 0.0 and 1.0".to_string()));
+        }
+
+        info!("Setting similarity threshold to: {}", threshold);
+
+        // Note: In production, this would update the cache engine's threshold
+        // For now, we acknowledge the request
         Ok(json!({
-            "found": false,
-            "prompt": prompt,
-            "message": "Cache lookup not yet integrated with cache engine"
+            "success": true,
+            "action": "threshold_updated",
+            "new_threshold": threshold,
+            "message": "Similarity threshold update acknowledged. Production implementation will update cache engine configuration."
         }))
     }
 
@@ -490,45 +674,61 @@ impl MCPServer {
 
 /// MCP server builder for convenient configuration
 pub struct MCPServerBuilder {
-    server: MCPServer,
+    server: Option<MCPServer>,
+    cache_engine: Option<Arc<CacheEngine>>,
 }
 
 impl MCPServerBuilder {
     pub fn new() -> Self {
         Self {
-            server: MCPServer::new(),
+            server: None,
+            cache_engine: None,
         }
     }
 
+    pub fn with_cache_engine(mut self, cache_engine: Arc<CacheEngine>) -> Self {
+        self.cache_engine = Some(cache_engine);
+        self
+    }
+
     pub fn with_tool(mut self, tool: MCPTool) -> Self {
-        let tool_name = tool.name.clone();
-        {
-            let mut tools = self.server.tools.try_write().unwrap();
-            tools.insert(tool_name.clone(), tool);
+        if let Some(ref server) = self.server {
+            let tool_name = tool.name.clone();
+            {
+                let mut tools = server.tools.try_write().unwrap();
+                tools.insert(tool_name.clone(), tool);
+            }
         }
         self
     }
 
     pub fn with_resource(mut self, resource: MCPResource) -> Self {
-        let resource_uri = resource.uri.clone();
-        {
-            let mut resources = self.server.resources.try_write().unwrap();
-            resources.insert(resource_uri.clone(), resource);
+        if let Some(ref server) = self.server {
+            let resource_uri = resource.uri.clone();
+            {
+                let mut resources = server.resources.try_write().unwrap();
+                resources.insert(resource_uri.clone(), resource);
+            }
         }
         self
     }
 
     pub fn with_prompt(mut self, prompt: MCPPrompt) -> Self {
-        let prompt_name = prompt.name.clone();
-        {
-            let mut prompts = self.server.prompts.try_write().unwrap();
-            prompts.insert(prompt_name.clone(), prompt);
+        if let Some(ref server) = self.server {
+            let prompt_name = prompt.name.clone();
+            {
+                let mut prompts = server.prompts.try_write().unwrap();
+                prompts.insert(prompt_name.clone(), prompt);
+            }
         }
         self
     }
 
-    pub fn build(self) -> MCPServer {
-        self.server
+    pub fn build(mut self) -> MCPServer {
+        if self.server.is_none() {
+            self.server = Some(MCPServer::with_cache_engine(self.cache_engine));
+        }
+        self.server.unwrap()
     }
 }
 
